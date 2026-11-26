@@ -1,0 +1,1249 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mini Hoop AI Scoreboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js"></script>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+  background: #090c12;
+  color: white;
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 15px;
+  text-align: center;
+}
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.team {
+  background: #171e29;
+  padding: 15px;
+  border: 3px solid transparent;
+  border-radius: 16px;
+}
+
+.possession {
+  border-color: #00ee88;
+}
+
+.score {
+  color: #ffdc39;
+  font-size: 85px;
+  font-weight: bold;
+}
+
+#clock {
+  font-size: 85px;
+  font-weight: bold;
+  color: #ff4141;
+  font-variant-numeric: tabular-nums;
+}
+
+button, input, select {
+  background: #283342;
+  border: 1px solid #465365;
+  color: white;
+  padding: 12px;
+  margin: 4px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+button {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.team input[type=text] {
+  width: 90%;
+  text-align: center;
+  font-weight: bold;
+}
+
+input[type=color] {
+  width: 45px;
+  height: 40px;
+  padding: 2px;
+}
+
+.cameraBox {
+  position: relative;
+  width: 100%;
+  max-width: 900px;
+  margin: auto;
+  aspect-ratio: 4/3;
+  background: black;
+}
+
+video, canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+canvas {
+  touch-action: none;
+}
+
+#notification {
+  font-size: 25px;
+  font-weight: bold;
+  color: #00ee88;
+  min-height: 35px;
+}
+
+#status {
+  color: #9dcaff;
+  padding: 12px;
+}
+
+.stat {
+  font-size: 25px;
+  margin: 8px;
+}
+
+.green { background: #087d48; }
+.red { background: #992d38; }
+
+</style>
+</head>
+
+<body>
+
+<h1>MINI HOOP ARENA</h1>
+
+<div id="notification">READY TO PLAY</div>
+
+<div class="scoreboard">
+  <div class="team" id="team0">
+    <input type="text" id="name0" value="HOME">
+    <div class="score" id="score0">0</div>
+
+    <button onclick="addScore(0,2)">+2</button>
+    <button onclick="addScore(0,3)">+3</button>
+
+    <div class="stat">
+      Fouls: <span id="fouls0">0</span>
+    </div>
+    <button onclick="changeFoul(0,-1)">−</button>
+    <button onclick="changeFoul(0,1)">+</button>
+
+    <div class="stat">
+      Timeouts: <span id="timeouts0">3</span>
+    </div>
+    <button onclick="changeTimeout(0,-1)">−</button>
+    <button onclick="changeTimeout(0,1)">+</button>
+
+    <p>Jersey colors</p>
+    <div id="colors0"></div>
+    <button onclick="addColor(0)">Add color</button>
+    <button onclick="removeColor(0)">Remove color</button>
+
+    <p id="stats0">2PT: 0 | 3PT: 0</p>
+  </div>
+
+  <div class="team" id="team1">
+    <input type="text" id="name1" value="AWAY">
+    <div class="score" id="score1">0</div>
+
+    <button onclick="addScore(1,2)">+2</button>
+    <button onclick="addScore(1,3)">+3</button>
+
+    <div class="stat">
+      Fouls: <span id="fouls1">0</span>
+    </div>
+    <button onclick="changeFoul(1,-1)">−</button>
+    <button onclick="changeFoul(1,1)">+</button>
+
+    <div class="stat">
+      Timeouts: <span id="timeouts1">3</span>
+    </div>
+    <button onclick="changeTimeout(1,-1)">−</button>
+    <button onclick="changeTimeout(1,1)">+</button>
+
+    <p>Jersey colors</p>
+    <div id="colors1"></div>
+    <button onclick="addColor(1)">Add color</button>
+    <button onclick="removeColor(1)">Remove color</button>
+
+    <p id="stats1">2PT: 0 | 3PT: 0</p>
+  </div>
+</div>
+
+<div id="clock">10:00</div>
+
+<button class="green" onclick="startClock()">START</button>
+<button onclick="pauseClock()">PAUSE</button>
+<button onclick="setClock()">RESET</button>
+
+<div>
+  <input id="minutes" type="number" min="0" max="99" value="10">
+  MIN
+  <input id="seconds" type="number" min="0" max="59" value="0">
+  SEC
+  <button onclick="setClock()">SET TIME</button>
+</div>
+
+<h2>Period <span id="period">1</span></h2>
+<button onclick="changePeriod(-1)">−</button>
+<button onclick="changePeriod(1)">+</button>
+
+<h2 id="possession">POSSESSION: —</h2>
+
+<button onclick="setPossession(0)">Home ball</button>
+<button onclick="setPossession(1)">Away ball</button>
+<button onclick="undoScore()">Undo basket</button>
+
+<hr>
+
+<h2>Automatic Camera Tracking</h2>
+
+<button class="green" onclick="startCamera()">START CAMERA</button>
+<button onclick="stopCamera()">STOP CAMERA</button>
+<button onclick="toggleTracking()">AUTO TRACKING</button>
+
+<div id="status">Camera not started</div>
+
+<div class="cameraBox">
+  <video id="video" autoplay muted playsinline></video>
+  <canvas id="overlay" width="480" height="360"></canvas>
+</div>
+
+<h3>Camera Calibration</h3>
+
+<button onclick="calibrate('rim')">Set Hoop</button>
+<button onclick="calibrate('line')">Trace 3PT Line</button>
+<button onclick="finishLine()">Finish Line</button>
+<button onclick="calibrate('inside')">Set Inside Zone</button>
+<button onclick="calibrate('ball')">Sample Basketball</button>
+
+<p>
+  Basketball color:
+  <input type="color" id="ballColor" value="#e88b27">
+</p>
+
+<p>
+  Color sensitivity:
+  <input type="range" id="tolerance" min="20" max="130" value="65">
+</p>
+
+<button onclick="clearCalibration()">Clear Calibration</button>
+<button class="red" onclick="newGame()">NEW GAME</button>
+
+<h3>Shot log</h3>
+<div id="log"></div>
+
+<script>
+
+const $ = id => document.getElementById(id);
+
+const W = 480;
+const H = 360;
+
+const video = $("video");
+const canvas = $("overlay");
+const ctx = canvas.getContext("2d");
+
+const frame = document.createElement("canvas");
+frame.width = W;
+frame.height = H;
+
+const fctx = frame.getContext("2d", {
+  willReadFrequently: true
+});
+
+const teams = [
+  { score:0, fouls:0, timeouts:3, two:0, three:0,
+    colors:["#2455ee"] },
+  { score:0, fouls:0, timeouts:3, two:0, three:0,
+    colors:["#ee3333"] }
+];
+
+let possession = -1;
+let period = 1;
+let history = [];
+let remaining = 600000;
+let deadline = 0;
+let clockRunning = false;
+
+let stream = null;
+let cameraRunning = false;
+let tracking = false;
+let generation = 0;
+
+let calibration = null;
+let rimPoints = [];
+let rim = null;
+let boundary = [];
+let insidePoint = null;
+let zone = [];
+
+let landmarks = null;
+let previousBall = null;
+let ball = null;
+let shot = null;
+let heldBy = -1;
+let heldSince = 0;
+let lastHeld = null;
+let lastGround = null;
+let groundY = null;
+let lastBasket = 0;
+let lastPoseTime = 0;
+
+function teamName(i) {
+  return $("name" + i).value;
+}
+
+function update() {
+  teams.forEach((t,i) => {
+    $("score"+i).textContent = t.score;
+    $("fouls"+i).textContent = t.fouls;
+    $("timeouts"+i).textContent = t.timeouts;
+    $("stats"+i).textContent =
+      `2PT: ${t.two} | 3PT: ${t.three}`;
+
+    $("team"+i).classList.toggle(
+      "possession", possession === i
+    );
+  });
+
+  $("possession").textContent =
+    "POSSESSION: " +
+    (possession < 0 ? "—" : teamName(possession));
+
+  $("period").textContent = period;
+}
+
+function addScore(team, points, automatic = false) {
+  if (team !== 0 && team !== 1) return;
+
+  history.push({
+    team, points,
+    previousPossession: possession
+  });
+
+  teams[team].score += points;
+
+  if (points === 2) teams[team].two++;
+  if (points === 3) teams[team].three++;
+
+  possession = 1 - team;
+
+  $("notification").textContent =
+    teamName(team) + " +" + points + " POINTS!";
+
+  log(
+    teamName(team) + " +" + points +
+    (automatic ? " — Automatic basket" : " — Manual basket")
+  );
+
+  update();
+}
+
+function undoScore() {
+  const h = history.pop();
+  if (!h) return;
+
+  teams[h.team].score -= h.points;
+
+  if (h.points === 2) teams[h.team].two--;
+  if (h.points === 3) teams[h.team].three--;
+
+  possession = h.previousPossession;
+  $("notification").textContent = "BASKET REVERSED";
+
+  update();
+}
+
+function changeFoul(i,n) {
+  teams[i].fouls = Math.max(0,teams[i].fouls+n);
+  update();
+}
+
+function changeTimeout(i,n) {
+  teams[i].timeouts = Math.max(
+    0,teams[i].timeouts+n
+  );
+  update();
+}
+
+function setPossession(i) {
+  possession = i;
+  update();
+}
+
+function changePeriod(n) {
+  period = Math.max(1,period+n);
+  update();
+}
+
+function renderColors(i) {
+  const div = $("colors"+i);
+  div.innerHTML = "";
+
+  teams[i].colors.forEach((color,index) => {
+    const input = document.createElement("input");
+    input.type = "color";
+    input.value = color;
+
+    input.oninput = () => {
+      teams[i].colors[index] = input.value;
+    };
+
+    div.appendChild(input);
+  });
+}
+
+function addColor(i) {
+  teams[i].colors.push("#ffffff");
+  renderColors(i);
+}
+
+function removeColor(i) {
+  if (teams[i].colors.length > 1) {
+    teams[i].colors.pop();
+    renderColors(i);
+  }
+}
+
+renderColors(0);
+renderColors(1);
+
+function setClock() {
+  clockRunning = false;
+
+  const m = Math.max(0,Math.min(
+    99,Math.floor(Number($("minutes").value)||0)
+  ));
+
+  const s = Math.max(0,Math.min(
+    59,Math.floor(Number($("seconds").value)||0)
+  ));
+
+  remaining = (m*60+s)*1000;
+  renderClock();
+}
+
+function startClock() {
+  if (clockRunning || remaining <= 0) return;
+  deadline = performance.now()+remaining;
+  clockRunning = true;
+}
+
+function pauseClock() {
+  if (clockRunning) {
+    remaining = Math.max(
+      0,deadline-performance.now()
+    );
+  }
+  clockRunning = false;
+  renderClock();
+}
+
+function renderClock() {
+  const s = Math.ceil(remaining/1000);
+
+  $("clock").textContent =
+    String(Math.floor(s/60)).padStart(2,"0") +
+    ":" +
+    String(s%60).padStart(2,"0");
+}
+
+setInterval(() => {
+  if (clockRunning) {
+    remaining = Math.max(
+      0,deadline-performance.now()
+    );
+
+    if (!remaining) clockRunning = false;
+    renderClock();
+  }
+},50);
+
+function log(message) {
+  const p = document.createElement("p");
+  p.textContent =
+    new Date().toLocaleTimeString()+" — "+message;
+  $("log").prepend(p);
+}
+
+// MEDIAPIPE FOOT AND BODY TRACKING
+
+const pose = new Pose({
+  locateFile: file =>
+    "https://cdn.jsdelivr.net/npm/@mediapipe/pose/"+file
+});
+
+pose.setOptions({
+  modelComplexity: 1,
+  smoothLandmarks: true,
+  enableSegmentation: false,
+  minDetectionConfidence: 0.65,
+  minTrackingConfidence: 0.65
+});
+
+pose.onResults(results => {
+  landmarks = results.poseLandmarks || null;
+  lastPoseTime = performance.now();
+});
+
+async function startCamera() {
+  stopCamera();
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: {
+        facingMode: { ideal:"environment" },
+        width: { ideal:1280 },
+        height: { ideal:960 },
+        frameRate: { ideal:30 }
+      },
+      audio:false
+    });
+
+    video.srcObject = stream;
+    await video.play();
+
+    cameraRunning = true;
+
+    $("status").textContent =
+      "Camera ready. Calibrate your hoop and line.";
+
+    const token = ++generation;
+    cameraLoop(token);
+
+  } catch(error) {
+    $("status").textContent =
+      "Camera error: "+error.message;
+  }
+}
+
+function stopCamera() {
+  generation++;
+  cameraRunning = false;
+  tracking = false;
+
+  if (stream) {
+    stream.getTracks().forEach(t=>t.stop());
+  }
+
+  stream = null;
+  video.srcObject = null;
+  resetTracking();
+}
+
+function resetTracking() {
+  ball = null;
+  previousBall = null;
+  shot = null;
+  heldBy = -1;
+  heldSince = 0;
+  lastHeld = null;
+  lastGround = null;
+  groundY = null;
+  landmarks = null;
+}
+
+function toggleTracking() {
+  if (!cameraRunning || !rim || zone.length < 3) {
+    $("status").textContent =
+      "Start the camera and calibrate hoop and shooting zone first.";
+    return;
+  }
+
+  tracking = !tracking;
+  resetTracking();
+
+  $("status").textContent = tracking
+    ? "AUTOMATIC TRACKING ACTIVE"
+    : "Tracking paused";
+}
+
+// HOOP AND COURT CALIBRATION
+
+function calibrate(mode) {
+  tracking = false;
+  calibration = mode;
+
+  if (mode === "rim") {
+    rimPoints = [];
+    $("status").textContent =
+      "Tap the left and right edges of your rim.";
+  }
+
+  if (mode === "line") {
+    boundary = [];
+    zone = [];
+    $("status").textContent =
+      "Tap points along your actual three-point line.";
+  }
+
+  if (mode === "inside") {
+    $("status").textContent =
+      "Tap the floor between your hoop and 3PT line.";
+  }
+
+  if (mode === "ball") {
+    $("status").textContent =
+      "Tap the basketball in the camera image.";
+  }
+}
+
+canvas.addEventListener("pointerdown",event => {
+  const rect = canvas.getBoundingClientRect();
+
+  const p = {
+    x:Math.max(0,Math.min(W-1,
+      (event.clientX-rect.left)*W/rect.width)),
+    y:Math.max(0,Math.min(H-1,
+      (event.clientY-rect.top)*H/rect.height))
+  };
+
+  if (calibration === "rim") {
+    rimPoints.push(p);
+
+    if (rimPoints.length === 2) {
+      rim = {
+        left:Math.min(rimPoints[0].x,rimPoints[1].x),
+        right:Math.max(rimPoints[0].x,rimPoints[1].x),
+        y:(rimPoints[0].y+rimPoints[1].y)/2
+      };
+
+      calibration = null;
+      $("status").textContent = "Hoop calibrated";
+    }
+  }
+
+  if (calibration === "line") {
+    boundary.push(p);
+  }
+
+  if (calibration === "inside") {
+    insidePoint = p;
+    buildZone();
+    calibration = null;
+  }
+
+  if (calibration === "ball") {
+    const color = fctx.getImageData(
+      Math.floor(p.x),Math.floor(p.y),1,1
+    ).data;
+
+    $("ballColor").value = "#"+
+      Array.from(color.slice(0,3))
+        .map(v=>v.toString(16).padStart(2,"0"))
+        .join("");
+
+    calibration = null;
+  }
+});
+
+function finishLine() {
+  if (boundary.length < 2) {
+    $("status").textContent = "Trace at least two points.";
+    return;
+  }
+
+  calibration = null;
+
+  $("status").textContent =
+    "Now select Set Inside Zone.";
+}
+
+// Extend the traced line to the image sides.
+// Works for a line or arc spanning the camera view.
+
+function buildZone() {
+  if (boundary.length < 2 || !insidePoint) return;
+
+  const points = boundary.slice().sort((a,b)=>a.x-b.x);
+
+  const first = points[0];
+  const last = points[points.length-1];
+
+  const middle = points.reduce(
+    (best,p) =>
+      Math.abs(p.x-insidePoint.x) <
+      Math.abs(best.x-insidePoint.x) ? p : best
+  );
+
+  const insideAbove = insidePoint.y < middle.y;
+  const edge = insideAbove ? 0 : H;
+
+  zone = [
+    {x:0,y:first.y},
+    ...points,
+    {x:W,y:last.y},
+    {x:W,y:edge},
+    {x:0,y:edge}
+  ];
+
+  $("status").textContent =
+    "Three-point boundary calibrated. Enable tracking.";
+}
+
+function clearCalibration() {
+  tracking = false;
+  rim = null;
+  rimPoints = [];
+  boundary = [];
+  zone = [];
+  insidePoint = null;
+  calibration = null;
+}
+
+function inPolygon(p,polygon) {
+  let inside = false;
+
+  for (
+    let i=0,j=polygon.length-1;
+    i<polygon.length;
+    j=i++
+  ) {
+    const a = polygon[i],b = polygon[j];
+
+    if (
+      ((a.y>p.y)!==(b.y>p.y)) &&
+      p.x < (b.x-a.x)*(p.y-a.y)/(b.y-a.y)+a.x
+    ) inside = !inside;
+  }
+
+  return inside;
+}
+
+function segmentDistance(p,a,b) {
+  const dx=b.x-a.x,dy=b.y-a.y;
+
+  const t=Math.max(0,Math.min(1,
+    ((p.x-a.x)*dx+(p.y-a.y)*dy)/
+    (dx*dx+dy*dy||1)
+  ));
+
+  return Math.hypot(
+    p.x-a.x-t*dx,p.y-a.y-t*dy
+  );
+}
+
+function point(index) {
+  const p = landmarks?.[index];
+
+  if (!p || (p.visibility??1)<0.65) return null;
+
+  return {x:p.x*W,y:p.y*H};
+}
+
+function feetValue() {
+  // MediaPipe: heels 29,30; toes 31,32.
+  const feet = [29,30,31,32].map(point);
+
+  if (feet.some(p=>!p) || !zone.length) return null;
+
+  const touching = feet.some(p =>
+    inPolygon(p,zone) ||
+    boundary.slice(1).some((b,i) =>
+      segmentDistance(p,boundary[i],b)<5
+    )
+  );
+
+  return touching ? 2 : 3;
+}
+
+// BALL COLOR DETECTION
+
+function rgb(hex) {
+  return [1,3,5].map(i =>
+    parseInt(hex.slice(i,i+2),16)
+  );
+}
+
+function colorDistance(a,b) {
+  return Math.hypot(
+    a[0]-b[0],a[1]-b[1],a[2]-b[2]
+  );
+}
+
+function detectBall(data) {
+  const target = rgb($("ballColor").value);
+  const tolerance = Number($("tolerance").value);
+  const mask = new Uint8Array(W*H);
+
+  for (let i=0;i<mask.length;i++) {
+    const j=i*4;
+    const dr=data[j]-target[0];
+    const dg=data[j+1]-target[1];
+    const db=data[j+2]-target[2];
+
+    if (
+      dr*dr+dg*dg+db*db <
+      tolerance*tolerance
+    ) mask[i]=1;
+  }
+
+  const queue = new Int32Array(W*H);
+
+  let best=null;
+  let bestScore=-Infinity;
+
+  for (let i=0;i<mask.length;i++) {
+    if (!mask[i]) continue;
+
+    let head=0,tail=0;
+    let sx=0,sy=0,count=0;
+    let minX=W,maxX=0,minY=H,maxY=0;
+
+    queue[tail++]=i;
+    mask[i]=0;
+
+    while (head<tail) {
+      const index=queue[head++];
+      const x=index%W;
+      const y=Math.floor(index/W);
+
+      count++;
+      sx+=x;
+      sy+=y;
+
+      minX=Math.min(minX,x);
+      maxX=Math.max(maxX,x);
+      minY=Math.min(minY,y);
+      maxY=Math.max(maxY,y);
+
+      const neighbors=[];
+
+      if (x>0) neighbors.push(index-1);
+      if (x<W-1) neighbors.push(index+1);
+      if (y>0) neighbors.push(index-W);
+      if (y<H-1) neighbors.push(index+W);
+
+      for (const n of neighbors) {
+        if (mask[n]) {
+          mask[n]=0;
+          queue[tail++]=n;
+        }
+      }
+    }
+
+    if (count<15 || count>3500) continue;
+
+    const width=maxX-minX+1;
+    const height=maxY-minY+1;
+
+    const aspect=width/height;
+    const fill=count/(width*height);
+
+    if (aspect<0.55 || aspect>1.8 || fill<0.4) {
+      continue;
+    }
+
+    const candidate={
+      x:sx/count,
+      y:sy/count,
+      radius:Math.max(width,height)/2,
+      time:performance.now()
+    };
+
+    let quality =
+      100-Math.abs(1-aspect)*50-
+      Math.abs(0.78-fill)*60;
+
+    if (previousBall &&
+        candidate.time-previousBall.time<200) {
+      quality-=Math.hypot(
+        candidate.x-previousBall.x,
+        candidate.y-previousBall.y
+      )*0.4;
+    }
+
+    if (quality>bestScore) {
+      bestScore=quality;
+      best=candidate;
+    }
+  }
+
+  return best;
+}
+
+// MULTIPLE JERSEY COLOR RECOGNITION
+
+function identifyTeam(data) {
+  const joints=[11,12,23,24].map(point);
+
+  if (joints.some(p=>!p)) return -1;
+
+  const cx=joints.reduce((s,p)=>s+p.x,0)/4;
+  const cy=joints.reduce((s,p)=>s+p.y,0)/4;
+
+  const votes=[0,0];
+
+  for (let dy=-12;dy<=12;dy+=4) {
+    for (let dx=-12;dx<=12;dx+=4) {
+      const x=Math.round(cx+dx);
+      const y=Math.round(cy+dy);
+
+      if (x<0||x>=W||y<0||y>=H) continue;
+
+      const j=(y*W+x)*4;
+      const pixel=[data[j],data[j+1],data[j+2]];
+
+      const distances=teams.map(t =>
+        Math.min(...t.colors.map(c =>
+          colorDistance(pixel,rgb(c))
+        ))
+      );
+
+      const winner=distances[0]<distances[1]?0:1;
+
+      if (
+        distances[winner]<85 &&
+        Math.abs(distances[0]-distances[1])>15
+      ) votes[winner]++;
+    }
+  }
+
+  const winner=votes[0]>votes[1]?0:1;
+
+  return votes[winner]>=12 &&
+    votes[winner]>votes[1-winner]*1.5
+    ? winner : -1;
+}
+
+// AUTOMATIC POSSESSION AND RELEASE DETECTION
+
+function trackPlay(data,now) {
+  const team = identifyTeam(data);
+  const feet = feetValue();
+
+  const footPoints=[29,30,31,32].map(point);
+
+  // Approximate the player's last grounded position.
+  if (feet!==null && footPoints.every(Boolean)) {
+    const y=Math.max(...footPoints.map(p=>p.y));
+
+    if (groundY===null) groundY=y;
+
+    if (y>=groundY-5) {
+      groundY=y;
+      lastGround={value:feet,time:now,team};
+    } else {
+      groundY-=0.15;
+    }
+  }
+
+  if (!ball) {
+    if (shot && now-shot.time>3000) shot=null;
+    return;
+  }
+
+  const hands=[15,16,19,20].map(point)
+    .filter(Boolean);
+
+  const nearHand=hands.some(p =>
+    Math.hypot(ball.x-p.x,ball.y-p.y)
+      < ball.radius+22
+  );
+
+  const dt=previousBall
+    ? now-previousBall.time : Infinity;
+
+  const upward=previousBall && dt<200 &&
+    ball.y<previousBall.y-2;
+
+  if (nearHand && team>=0) {
+
+    if (heldBy!==team) {
+      heldBy=team;
+      heldSince=now;
+    }
+
+    if (now-heldSince>120) {
+      setPossession(team);
+
+      const groundedValue =
+        lastGround &&
+        lastGround.team===team &&
+        now-lastGround.time<800
+        ? lastGround.value : null;
+
+      lastHeld={
+        team,
+        value:groundedValue,
+        time:now,
+        x:ball.x,
+        y:ball.y
+      };
+    }
+  } else {
+    heldBy=-1;
+
+    if (
+      !shot &&
+      lastHeld &&
+      now-lastHeld.time<500 &&
+      upward
+    ) {
+      shot={
+        team:lastHeld.team,
+        value:lastHeld.value,
+        time:now,
+        above:false,
+        crossed:false
+      };
+
+      $("notification").textContent =
+        shot.value
+          ? shot.value+"-POINT SHOT IN AIR"
+          : "SHOT — FOOT POSITION UNCERTAIN";
+
+      lastHeld=null;
+    }
+  }
+
+  checkBasket(now);
+}
+
+// AUTOMATIC MADE BASKET DETECTION
+
+function checkBasket(now) {
+  if (!rim || !shot || !ball) return;
+
+  if (now-shot.time>3000) {
+    shot=null;
+    return;
+  }
+
+  const margin=ball.radius*0.45;
+
+  const inRim = x =>
+    x>=rim.left+margin &&
+    x<=rim.right-margin;
+
+  if (
+    ball.y<rim.y-4 &&
+    ball.x>rim.left-20 &&
+    ball.x<rim.right+20
+  ) {
+    shot.above=true;
+  }
+
+  if (
+    shot.above &&
+    previousBall &&
+    ball.time-previousBall.time<200 &&
+    previousBall.y<=rim.y &&
+    ball.y>rim.y
+  ) {
+    const t=(rim.y-previousBall.y)/
+      (ball.y-previousBall.y);
+
+    const crossingX=previousBall.x+
+      t*(ball.x-previousBall.x);
+
+    if (inRim(crossingX)) {
+      shot.crossed=true;
+      shot.crossTime=now;
+    }
+  }
+
+  if (
+    shot.crossed &&
+    now-shot.crossTime<450 &&
+    ball.y>rim.y+ball.radius &&
+    ball.x>rim.left-8 &&
+    ball.x<rim.right+8 &&
+    now-lastBasket>850
+  ) {
+    lastBasket=now;
+
+    if (shot.value===2 || shot.value===3) {
+      addScore(shot.team,shot.value,true);
+    } else {
+      $("notification").textContent =
+        "POSSIBLE BASKET — CHECK SHOT VALUE";
+
+      log("Possible basket by "+teamName(shot.team)+
+          "; foot position uncertain.");
+    }
+
+    shot=null;
+    lastHeld=null;
+  }
+}
+
+// LIVE TRACKING OVERLAY
+
+function drawOverlay() {
+  ctx.clearRect(0,0,W,H);
+
+  if (zone.length>2) {
+    ctx.fillStyle="rgba(50,150,255,0.12)";
+    ctx.beginPath();
+
+    zone.forEach((p,i) =>
+      i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)
+    );
+
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  if (boundary.length) {
+    ctx.strokeStyle="#ffe600";
+    ctx.lineWidth=3;
+    ctx.beginPath();
+
+    boundary.forEach((p,i) =>
+      i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y)
+    );
+
+    ctx.stroke();
+
+    for (const p of boundary) {
+      ctx.fillStyle="#ffe600";
+      ctx.fillRect(p.x-3,p.y-3,6,6);
+    }
+  }
+
+  if (rim) {
+    ctx.strokeStyle="#00ff99";
+    ctx.lineWidth=3;
+    ctx.strokeRect(
+      rim.left,rim.y-6,
+      rim.right-rim.left,12
+    );
+
+    ctx.fillStyle="#00ff99";
+    ctx.font="14px Arial";
+    ctx.fillText("HOOP",rim.left,rim.y-12);
+  }
+
+  if (tracking && landmarks) {
+    const value=feetValue();
+
+    ctx.strokeStyle =
+      value===3?"#00ff88":"#ffdf00";
+
+    ctx.lineWidth=2;
+
+    for (const indices of [[29,31],[30,32]]) {
+      const a=point(indices[0]);
+      const b=point(indices[1]);
+
+      if (!a||!b) continue;
+
+      ctx.beginPath();
+      ctx.moveTo(a.x,a.y);
+      ctx.lineTo(b.x,b.y);
+      ctx.stroke();
+
+      ctx.strokeRect(
+        Math.min(a.x,b.x)-5,
+        Math.min(a.y,b.y)-5,
+        Math.abs(a.x-b.x)+10,
+        Math.abs(a.y-b.y)+10
+      );
+    }
+
+    if (value) {
+      ctx.fillStyle="#ffffff";
+      ctx.font="bold 16px Arial";
+      ctx.fillText(value+"-POINT ZONE",12,24);
+    }
+  }
+
+  if (tracking && ball) {
+    ctx.strokeStyle="#00e5ff";
+    ctx.lineWidth=3;
+
+    ctx.beginPath();
+    ctx.arc(
+      ball.x,ball.y,ball.radius+4,
+      0,Math.PI*2
+    );
+    ctx.stroke();
+
+    ctx.fillStyle="#00e5ff";
+    ctx.font="12px Arial";
+    ctx.fillText(
+      "BALL",ball.x+10,ball.y-12
+    );
+  }
+}
+
+// REAL-TIME CAMERA LOOP
+
+async function cameraLoop(token) {
+  if (!cameraRunning || token!==generation) return;
+
+  try {
+    if (video.readyState>=2) {
+      fctx.drawImage(video,0,0,W,H);
+
+      if (tracking) {
+        await pose.send({image:frame});
+
+        if (token!==generation) return;
+
+        const data=fctx.getImageData(0,0,W,H).data;
+
+        ball=detectBall(data);
+
+        if (performance.now()-lastPoseTime<500) {
+          trackPlay(data,performance.now());
+        }
+
+        if (ball) previousBall=ball;
+      }
+    }
+
+    drawOverlay();
+
+  } catch(error) {
+    tracking=false;
+    $("status").textContent=
+      "Tracking error: "+error.message;
+  }
+
+  if (cameraRunning && token===generation) {
+    requestAnimationFrame(()=>cameraLoop(token));
+  }
+}
+
+function newGame() {
+  teams.forEach(t=>{
+    t.score=0;
+    t.fouls=0;
+    t.timeouts=3;
+    t.two=0;
+    t.three=0;
+  });
+
+  possession=-1;
+  period=1;
+  history=[];
+  lastBasket=0;
+
+  resetTracking();
+  setClock();
+  update();
+
+  $("notification").textContent="NEW GAME";
+  $("log").innerHTML="";
+}
+
+update();
+
+</script>
+</body>
+</html>
